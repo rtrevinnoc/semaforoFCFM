@@ -59,7 +59,7 @@ if __name__ == "__main__":
 
         # Eliminar documentos con ese criterio
     if collection.count_documents(criterio) > 0:
-        collection.delete_one(criterio)
+        #collection.delete_one(criterio)
         print("Documento eliminado con éxito.")
     
     try:
@@ -130,6 +130,7 @@ if __name__ == "__main__":
                 
                 # Verificar si algún semáforo en la zona ya está en verde o en modo manual
                 otro_en_verde = any(s["state"] == 1 and s["serial"] != SERIAL_NUMBER for s in semaforos_en_zona)  
+                
                 otro_en_manual = any(s["mode"] == 0 for s in semaforos_en_zona)
 
                 if semaforo["state"] == 1:  # Verde

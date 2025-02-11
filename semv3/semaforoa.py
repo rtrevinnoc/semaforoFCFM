@@ -60,8 +60,9 @@ if __name__ == "__main__":
 
         # Eliminar documentos con ese criterio
     if collection.count_documents(criterio) > 0:
-        collection.delete_one(criterio)
+        #collection.delete_one(criterio)
         print("Documento eliminado con éxito.")
+    
     try:
         while completed_flag:
             print("Revisión de ejecución")
