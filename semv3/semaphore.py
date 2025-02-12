@@ -1,5 +1,5 @@
 from enum import Enum
-import time, os
+import time, os, threading
 import RPi.GPIO as GPIO
 from pymongo import MongoClient, errors
 
@@ -34,13 +34,36 @@ class Semaphore():
         self.mode = self.Mode(semaphore["mode"])
         self.state = self.ColorState(semaphore["state"])
         self.color = self.state.ToColor()
-        self.changeFlag = semaphore["change_flag"]
-        self.countCycle = semaphore["count_cycle"]
         self.zone = semaphore["zone"]
         self.cruceId = semaphore["cruce_id"]
         self.priority = semaphore["priority"]
 
-        self.turnOn(self.color)
+        self.turnOnColor(self.color)
+
+        self.changeThread = threading.Thread(target=self.listenForChanges)
+        self.changeThread.start()
+
+    def __del__(self):
+        self.turnOffAllColors()
+        self.changeStream.close()
+
+    def listenForChanges(self):
+        self.changeStream = estado.watch([
+            {"$match": {"documentKey._id": self.id}}
+        ])
+        for change in self.changeStream:
+            if change["operationType"] == "update":
+                updatedFields = change["updateDescription"]["updatedFields"]
+
+                if "mode" in updatedFields:
+                    self.mode = self.Mode(updatedFields["mode"])
+
+                if "state" in updatedFields:
+                    self.state = self.ColorState(updatedFields["state"])
+                    self.color = self.state.ToColor()
+
+                if "priority" in updatedFields:
+                    self.priority = updatedFields["priority"]
 
     class ColorState(Enum):
         RED = 0
@@ -53,7 +76,7 @@ class Semaphore():
                 Semaphore.ColorState.GREEN: Semaphore.Color.GREEN,
                 Semaphore.ColorState.YELLOW: Semaphore.Color.YELLOW,
             }
-            return switch.get(self, None)
+            return switch.get(self)
 
     class Color(Enum):
         RED = SEMAPHORE_RED
@@ -66,48 +89,54 @@ class Semaphore():
                 Semaphore.Color.GREEN: Semaphore.ColorState.GREEN,
                 Semaphore.Color.YELLOW: Semaphore.ColorState.YELLOW,
             }
-            return switch.get(self, None)
+            return switch.get(self)
 
     class Mode(Enum):
         Manual = 0
         Automatic = 1
 
-    def turnOff(self):
+    def turnOffAllColors(self):
         GPIO.output(self.Color.RED.value, GPIO.LOW)
         GPIO.output(self.Color.YELLOW.value, GPIO.LOW)
         GPIO.output(self.Color.GREEN.value, GPIO.LOW)
 
-    def turnOn(self, color: Color):
-        self.turnOff()
+    def turnOnColor(self, color: Color):
+        self.turnOffAllColors()
         GPIO.output(color.value, GPIO.HIGH)
+
+    def blinkColor(self, color: Color, times: int, duration: int):
+        self.turnOffAllColors()
+        for _ in range(times):
+            GPIO.output(color.value, GPIO.HIGH)
+            time.sleep(duration)
+            GPIO.output(color.value, GPIO.LOW)
+            time.sleep(duration)
 
     def run(self):
         switch = {
-            self.Mode.Manual: self.runManual,
-            self.Mode.Automatic: self.runAutomatic
+            Semaphore.Mode.Manual: self.runManual,
+            Semaphore.Mode.Automatic: self.runAutomatic,
         }
-        switch.get(self.mode, None)()
+        return switch.get(self, ())
 
     def runManual(self):
-        changeStream = estado.watch([
-            {"$match": {"documentKey._id": self.id}}
-        ])
-        for change in changeStream:
-            if change["operationType"] == "update":
-                self.state = self.ColorState(change["updateDescription"]["updatedFields"]["state"])
-                self.color = self.state.ToColor()
-                self.turnOn(self.color)
+        print("MANUAL")
+        self.turnOnColor(self.color)
 
     def runAutomatic(self):
         print("AUTOMATIC")
+        otherSemaphoresInZone = estado.find({"zone": self.zone})
 
 if __name__ == "__main__":
     semaphore = Semaphore()
     try:
-        semaphore.run()
+        while True:
+            print("RUNNING")
+            semaphore.run()
     except KeyboardInterrupt:
         print("Programa interrumpido por el usuario.")
     finally:
         print("Apagando todas las luces...")
-        semaphore.turnOff()
+        semaphore.__del__()
+        client.close()
         GPIO.cleanup()  # Limpiar la configuración de los pines GPIO
