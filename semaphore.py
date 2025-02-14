@@ -1,7 +1,7 @@
 from enum import Enum
 import time, os, threading
 import RPi.GPIO as GPIO
-from pymongo import MongoClient, errors
+from pymongo import MongoClient, errors, ASCENDING, DESCENDING
 
 SERIAL_NUMBER = os.environ["SERIAL_NUMBER"]
 SEMAPHORE_RED = int(os.environ["SEMAPHORE_RED"])
@@ -37,6 +37,8 @@ class Semaphore():
         self.zone = semaphore["zone"]
         self.cruceId = semaphore["cruce_id"]
         self.priority = semaphore["priority"]
+        self.cycles = semaphore["cycles"]
+        self.cycle_count = 0
 
         print("RUNNING AS", self.mode)
         self.turnOnColor(self.color)
@@ -69,8 +71,8 @@ class Semaphore():
 
     class ColorState(Enum):
         RED = 0
-        GREEN = 1
-        YELLOW = 2
+        YELLOW = 1
+        GREEN = 2
 
         def ToColor(self):
             switch = {
@@ -125,8 +127,50 @@ class Semaphore():
         self.turnOnColor(self.color)
 
     def runAutomatic(self):
-        otherSemaphoresInIntersection = estado.find({"cruce_id": self.cruceId})
-        print(otherSemaphoresInIntersection)
+        otherSemaphoresInIntersectionQuery = estado.find({
+            "cruce_id": self.cruceId,
+            "serial": {"$ne": self.serial}
+        }).sort("priority", DESCENDING)
+
+        otherSemaphoresInIntersection = [semaphore for semaphore in otherSemaphoresInIntersectionQuery]
+
+        if self.state == self.ColorState.GREEN:
+            self.cycle_count += 1
+            print("IM GREEN", self.cycle_count, self.cycles)
+
+            if self.cycle_count > self.cycles:
+                if not {self.ColorState.GREEN, self.ColorState.YELLOW} & set([self.ColorState(semaphore["state"]) for semaphore in otherSemaphoresInIntersection]):
+                    self.state = self.ColorState.YELLOW
+                    self.cycle_count = 0
+        if self.state == self.ColorState.YELLOW:
+            self.cycle_count += 1
+            print("IM YELLOW", self.cycle_count, 3)
+
+            if self.cycle_count > 3:
+                self.state = self.ColorState.RED
+                self.cycle_count = 0
+        if self.state == self.ColorState.RED:
+            self.cycle_count += 1
+            print("IM RED", self.cycle_count, self.cycles)
+
+            if self.cycle_count > self.cycles:
+                if not {self.ColorState.GREEN, self.ColorState.YELLOW} & set([self.ColorState(semaphore["state"]) for semaphore in otherSemaphoresInIntersection]):
+                    self.state = self.ColorState.GREEN
+                    self.cycle_count = 0
+        # elif self.Mode.Manual in [self.Mode(semaphore["mode"]) for semaphore in otherSemaphoresInIntersection]:
+        #     if {self.ColorState.GREEN, self.ColorState.YELLOW} & set([self.ColorState(semaphore["state"]) for semaphore in otherSemaphoresInIntersection]):
+        #         self.state = self.ColorState.RED
+        #     else:
+        #         self.state = self.ColorState.GREEN
+        
+        self.color = self.state.ToColor()
+        self.turnOnColor(self.color)
+        estado.update_one(
+            {"_id": self.id},
+            {"$set": {"state": self.state.value}}
+        )
+
+        time.sleep(1)
 
 if __name__ == "__main__":
     semaphore = Semaphore()
