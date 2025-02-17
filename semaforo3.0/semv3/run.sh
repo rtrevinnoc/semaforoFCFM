@@ -1,5 +1,0 @@
-#!/bin/bash
-
-lxterminal -t "Semáforo 1" -e "SERIAL_NUMBER=2526753599 SEMAPHORE_RED=22 SEMAPHORE_YELLOW=27 SEMAPHORE_GREEN=17 python semaphore.py"
-lxterminal -t "Semáforo 2" -e "SERIAL_NUMBER=2526753598 SEMAPHORE_RED=16 SEMAPHORE_YELLOW=24 SEMAPHORE_GREEN=23 python semaphore.py"
-lxterminal -t "Semáforo 3" -e "SERIAL_NUMBER=2526753597 SEMAPHORE_RED=5 SEMAPHORE_YELLOW=19 SEMAPHORE_GREEN=26 python semaphore.py"
