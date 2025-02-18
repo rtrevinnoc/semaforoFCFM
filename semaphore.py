@@ -34,7 +34,7 @@ class Semaphore():
         self.location = semaphore["location"]
         self.mode = self.Mode(semaphore["mode"])
         self.state = self.ColorState(semaphore["state"])
-        self.color = self.state.ToColor()
+        self.color = self.state.toColor()
         self.zone = semaphore["zone"]
         self.cruceId = semaphore["cruce_id"]
         self.priority = semaphore["priority"]
@@ -66,7 +66,7 @@ class Semaphore():
 
                 if "state" in updatedFields:
                     self.state = self.ColorState(updatedFields["state"])
-                    self.color = self.state.ToColor()
+                    self.color = self.state.toColor()
 
                 if "priority" in updatedFields:
                     self.priority = updatedFields["priority"]
@@ -82,7 +82,7 @@ class Semaphore():
         YELLOW = 1
         GREEN = 2
 
-        def ToColor(self):
+        def toColor(self):
             switch = {
                 Semaphore.ColorState.RED: Semaphore.Color.RED,
                 Semaphore.ColorState.GREEN: Semaphore.Color.GREEN,
@@ -95,13 +95,21 @@ class Semaphore():
         YELLOW = SEMAPHORE_YELLOW
         GREEN = SEMAPHORE_GREEN
 
-        def ToColorState(self):
+        def toColorState(self):
             switch = {
                 Semaphore.Color.RED: Semaphore.ColorState.RED,
                 Semaphore.Color.GREEN: Semaphore.ColorState.GREEN,
                 Semaphore.Color.YELLOW: Semaphore.ColorState.YELLOW,
             }
             return switch.get(self)
+        
+        def changeLight(self):
+            switch = {
+                Semaphore.Color.RED: Semaphore.ColorState.RED,
+                Semaphore.Color.GREEN: Semaphore.ColorState.GREEN,
+                Semaphore.Color.YELLOW: Semaphore.ColorState.YELLOW,
+            }
+            switch.get(self.mode, ())()
 
     class Mode(Enum):
         Manual = 0
@@ -122,6 +130,43 @@ class Semaphore():
     def blinkColor(self, color: Color, interval: float):
         self.toggleColor(color)
         time.sleep(interval)
+    
+    def changeToYellow(self):
+        now = datetime.now()
+        self.state = self.ColorState.YELLOW
+        self.color = self.state.toColor()
+        self.turnOnColor(self.color)
+        self.last_update = now
+        self.updateState({
+            "state": self.state.value,
+            "last_update": now
+        })
+
+    def changeToGreen(self, semaphoresInIntersection):
+        if (not {self.ColorState.GREEN, self.ColorState.YELLOW} & set([self.ColorState(semaphore["state"]) for semaphore in semaphoresInIntersection])
+            and self.serial == semaphoresInIntersection[0]["serial"]):
+            time.sleep(0.5)
+            now = datetime.now()
+            self.state = self.ColorState.GREEN
+            self.color = self.state.toColor()
+            self.turnOnColor(self.color)
+            self.last_update = now
+            self.updateState({
+                "state": self.state.value,
+                "last_update": now,
+                "last_green_update": now
+            })
+
+    def changeToRed(self):
+        now = datetime.now()
+        self.state = self.ColorState.RED
+        self.color = self.state.toColor()
+        self.turnOnColor(self.color)
+        self.last_update = now
+        self.updateState({
+            "state": self.state.value,
+            "last_update": now
+        })
 
     def run(self):
         switch = {
@@ -132,6 +177,15 @@ class Semaphore():
 
     def runManual(self):
         self.turnOnColor(self.color)
+        now = datetime.now()
+        self.last_update = now
+        payload = {
+            "last_update": now
+        }
+        if self.color == self.Color.GREEN:
+            self.last_green_update = now
+            payload["last_green_update"] = now
+        self.updateState(payload)
 
     def runAutomatic(self):
         semaphoresInIntersectionQuery = estado.find({
@@ -148,48 +202,21 @@ class Semaphore():
             print(f"IM GREEN {self.priority}")
 
             if now >= current_breakoff:
-                now = datetime.now()
-                self.state = self.ColorState.YELLOW
-                self.color = self.state.ToColor()
-                self.turnOnColor(self.color)
-                self.last_update = now
-                self.updateState({
-                    "state": self.state.value,
-                    "last_update": now
-                })
+                self.changeToYellow()
         elif self.state == self.ColorState.YELLOW:
             current_breakoff: datetime = self.last_update + timedelta(seconds=3)
             print(f"IM YELLOW {self.priority}")
             self.blinkColor(self.Color.YELLOW, 0.5)
 
             if now >= current_breakoff:
-                now = datetime.now()
-                self.state = self.ColorState.RED
-                self.color = self.state.ToColor()
-                self.turnOnColor(self.color)
-                self.last_update = now
-                self.updateState({
-                    "state": self.state.value,
-                    "last_update": now
-                })
+                self.changeToRed()
         elif self.state == self.ColorState.RED:
             current_breakoff: datetime = self.last_update + timedelta(seconds=self.cycles)
             print(f"IM RED {self.priority}")
 
             if now >= current_breakoff:
-                if (not {self.ColorState.GREEN, self.ColorState.YELLOW} & set([self.ColorState(semaphore["state"]) for semaphore in semaphoresInIntersection])
-                    and self.serial == semaphoresInIntersection[0]["serial"]):
-                    time.sleep(0.5)
-                    now = datetime.now()
-                    self.state = self.ColorState.GREEN
-                    self.color = self.state.ToColor()
-                    self.turnOnColor(self.color)
-                    self.last_update = now
-                    self.updateState({
-                        "state": self.state.value,
-                        "last_update": now,
-                        "last_green_update": now
-                    })
+                self.changeToGreen(semaphoresInIntersection)
+
 
     def updateState(self, payload):
         estado.update_one(
