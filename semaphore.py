@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta
 from enum import Enum
 import time, os, threading
 import RPi.GPIO as GPIO
@@ -38,7 +39,8 @@ class Semaphore():
         self.cruceId = semaphore["cruce_id"]
         self.priority = semaphore["priority"]
         self.cycles = semaphore["cycles"]
-        self.cycle_count = 0
+        self.last_update: datetime = semaphore["last_update"]
+        self.last_green_update = semaphore["last_green_update"]
 
         print("RUNNING AS", self.mode)
         self.turnOnColor(self.color)
@@ -68,6 +70,12 @@ class Semaphore():
 
                 if "priority" in updatedFields:
                     self.priority = updatedFields["priority"]
+
+                if "last_update" in updatedFields:
+                    self.last_update = updatedFields["last_update"]
+
+                if "last_green_update" in updatedFields:
+                    self.last_green_update = updatedFields["last_green_update"]
 
     class ColorState(Enum):
         RED = 0
@@ -127,50 +135,62 @@ class Semaphore():
         self.turnOnColor(self.color)
 
     def runAutomatic(self):
-        otherSemaphoresInIntersectionQuery = estado.find({
+        semaphoresInIntersectionQuery = estado.find({
             "cruce_id": self.cruceId,
-            "serial": {"$ne": self.serial}
-        }).sort("priority", DESCENDING)
+        }).sort([
+            ("last_green_update", ASCENDING),
+            ("priority", ASCENDING)
+        ])
 
-        otherSemaphoresInIntersection = [semaphore for semaphore in otherSemaphoresInIntersectionQuery]
+        semaphoresInIntersection = [semaphore for semaphore in semaphoresInIntersectionQuery]
 
+        now = datetime.now()
         if self.state == self.ColorState.GREEN:
-            self.cycle_count += 1
-            print("IM GREEN", self.cycle_count, self.cycles)
+            current_breakoff: datetime = self.last_update + timedelta(seconds=self.cycles)
+            print(f"IM GREEN {self.priority}")
 
-            if self.cycle_count > self.cycles:
-                if not {self.ColorState.GREEN, self.ColorState.YELLOW} & set([self.ColorState(semaphore["state"]) for semaphore in otherSemaphoresInIntersection]):
-                    self.state = self.ColorState.YELLOW
-                    self.cycle_count = 0
-        if self.state == self.ColorState.YELLOW:
-            self.cycle_count += 1
-            print("IM YELLOW", self.cycle_count, 3)
+            if now >= current_breakoff:
+                self.state = self.ColorState.YELLOW
+                self.last_update = now
+                self.updateState({
+                    "state": self.state.value,
+                    "last_update": now
+                })
+        elif self.state == self.ColorState.YELLOW:
+            current_breakoff: datetime = self.last_update + timedelta(seconds=3)
+            print(f"IM YELLOW {self.priority}")
 
-            if self.cycle_count > 3:
+            if now >= current_breakoff:
                 self.state = self.ColorState.RED
-                self.cycle_count = 0
-        if self.state == self.ColorState.RED:
-            self.cycle_count += 1
-            print("IM RED", self.cycle_count, self.cycles)
+                self.last_update = now
+                self.updateState({
+                    "state": self.state.value,
+                    "last_update": now
+                })
+        elif self.state == self.ColorState.RED:
+            current_breakoff: datetime = self.last_update + timedelta(seconds=self.cycles)
+            print(f"IM RED {self.priority}")
 
-            if self.cycle_count > self.cycles:
-                if not {self.ColorState.GREEN, self.ColorState.YELLOW} & set([self.ColorState(semaphore["state"]) for semaphore in otherSemaphoresInIntersection]):
+            if now >= current_breakoff:
+                if (not {self.ColorState.GREEN, self.ColorState.YELLOW} & set([self.ColorState(semaphore["state"]) for semaphore in semaphoresInIntersection])
+                    and self.serial == semaphoresInIntersection[0]["serial"]):
                     self.state = self.ColorState.GREEN
-                    self.cycle_count = 0
-        # elif self.Mode.Manual in [self.Mode(semaphore["mode"]) for semaphore in otherSemaphoresInIntersection]:
-        #     if {self.ColorState.GREEN, self.ColorState.YELLOW} & set([self.ColorState(semaphore["state"]) for semaphore in otherSemaphoresInIntersection]):
-        #         self.state = self.ColorState.RED
-        #     else:
-        #         self.state = self.ColorState.GREEN
-        
+                    self.last_update = now
+                    self.updateState({
+                        "state": self.state.value,
+                        "last_update": now,
+                        "last_green_update": now
+                    })
+
+    def updateState(self, payload):
         self.color = self.state.ToColor()
         self.turnOnColor(self.color)
         estado.update_one(
             {"_id": self.id},
-            {"$set": {"state": self.state.value}}
+            {
+                "$set": payload
+            }
         )
-
-        time.sleep(1)
 
 if __name__ == "__main__":
     semaphore = Semaphore()

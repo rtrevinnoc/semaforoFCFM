@@ -19,7 +19,5 @@ tmux split-window -v -t "$SESSION_NAME":0.1
 
 tmux send-keys -t "$SESSION_NAME".2 "SERIAL_NUMBER=2526753597 SEMAPHORE_RED=5 SEMAPHORE_YELLOW=19 SEMAPHORE_GREEN=26 python semaphore.py" C-m
 
-tmux split-window -v -t "$SESSION_NAME":0.0
-
 # Attach to the session
 tmux attach -t "$SESSION_NAME"
