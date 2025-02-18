@@ -116,13 +116,12 @@ class Semaphore():
         self.turnOffAllColors()
         GPIO.output(color.value, GPIO.HIGH)
 
-    def blinkColor(self, color: Color, times: int, duration: int):
-        self.turnOffAllColors()
-        for _ in range(times):
-            GPIO.output(color.value, GPIO.HIGH)
-            time.sleep(duration)
-            GPIO.output(color.value, GPIO.LOW)
-            time.sleep(duration)
+    def toggleColor(self, color: Color):
+        GPIO.output(color.value, not GPIO.input(color.value))
+
+    def blinkColor(self, color: Color, interval: float):
+        self.toggleColor(color)
+        time.sleep(interval)
 
     def run(self):
         switch = {
@@ -141,7 +140,6 @@ class Semaphore():
             ("last_green_update", ASCENDING),
             ("priority", ASCENDING)
         ])
-
         semaphoresInIntersection = [semaphore for semaphore in semaphoresInIntersectionQuery]
 
         now = datetime.now()
@@ -150,7 +148,10 @@ class Semaphore():
             print(f"IM GREEN {self.priority}")
 
             if now >= current_breakoff:
+                now = datetime.now()
                 self.state = self.ColorState.YELLOW
+                self.color = self.state.ToColor()
+                self.turnOnColor(self.color)
                 self.last_update = now
                 self.updateState({
                     "state": self.state.value,
@@ -159,9 +160,13 @@ class Semaphore():
         elif self.state == self.ColorState.YELLOW:
             current_breakoff: datetime = self.last_update + timedelta(seconds=3)
             print(f"IM YELLOW {self.priority}")
+            self.blinkColor(self.Color.YELLOW, 0.5)
 
             if now >= current_breakoff:
+                now = datetime.now()
                 self.state = self.ColorState.RED
+                self.color = self.state.ToColor()
+                self.turnOnColor(self.color)
                 self.last_update = now
                 self.updateState({
                     "state": self.state.value,
@@ -174,7 +179,11 @@ class Semaphore():
             if now >= current_breakoff:
                 if (not {self.ColorState.GREEN, self.ColorState.YELLOW} & set([self.ColorState(semaphore["state"]) for semaphore in semaphoresInIntersection])
                     and self.serial == semaphoresInIntersection[0]["serial"]):
+                    time.sleep(0.5)
+                    now = datetime.now()
                     self.state = self.ColorState.GREEN
+                    self.color = self.state.ToColor()
+                    self.turnOnColor(self.color)
                     self.last_update = now
                     self.updateState({
                         "state": self.state.value,
@@ -183,8 +192,6 @@ class Semaphore():
                     })
 
     def updateState(self, payload):
-        self.color = self.state.ToColor()
-        self.turnOnColor(self.color)
         estado.update_one(
             {"_id": self.id},
             {
