@@ -1,0 +1,66 @@
+[{
+  "_id": {
+    "$oid": "67ab8ff0cf638c009f70fa7d"
+  },
+  "serial": "2526753598",
+  "location": {
+    "latitude": 25.800123,
+    "longitude": -100.392382
+  },
+  "mode": 1,
+  "state": 0,
+  "zone": "a2",
+  "cruce_id": 124535363,
+  "priority": 0,
+  "cycles": 5,
+  "last_green_update": {
+    "$date": "2025-02-18T10:21:28.825Z"
+  },
+  "last_update": {
+    "$date": "2025-02-18T10:21:37.627Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "67ab8ff07df521437a37c7b3"
+  },
+  "serial": "2526753597",
+  "location": {
+    "latitude": 25.800195,
+    "longitude": -100.392146
+  },
+  "mode": 1,
+  "state": 0,
+  "zone": "a2",
+  "cruce_id": 124535363,
+  "priority": 2,
+  "cycles": 3,
+  "last_green_update": {
+    "$date": "2025-02-18T10:21:38.282Z"
+  },
+  "last_update": {
+    "$date": "2025-02-18T10:21:45.275Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "67ab95404fe5bc8faebe5448"
+  },
+  "serial": "2526753599",
+  "location": {
+    "latitude": 25.800379,
+    "longitude": -100.392181
+  },
+  "mode": 1,
+  "state": 1,
+  "zone": "a2",
+  "cruce_id": 124535363,
+  "priority": 1,
+  "cycles": 2,
+  "last_update": {
+    "$date": "2025-02-18T10:21:48.027Z"
+  },
+  "last_green_update": {
+    "$date": "2025-02-18T10:21:45.949Z"
+  }
+}]

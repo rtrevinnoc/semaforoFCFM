@@ -1,0 +1,1 @@
+json.extract! semaforo, :id, :serial, :mode, :state, :zone, :cruce_id, :priority, :cycles, :last_green_update, :last_update, :location
