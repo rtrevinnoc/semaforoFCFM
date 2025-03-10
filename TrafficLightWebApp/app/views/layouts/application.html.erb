@@ -23,11 +23,30 @@
     <%= javascript_importmap_tags %>
   </head>
 
-  <body>
-    <% if user_signed_in? %>
-      <p>Welcome, <%= current_user.email %>!</p>
-      <%= button_to "Logout", destroy_user_session_path, method: :delete %>
-    <% end %>
+  <body data-controller="layout" class="bg-gray-100">
+    <nav class="h-14 bg-white shadow-md p-4 flex justify-between items-center">
+      <div class="flex items-cente space-x-4">
+        <button class="text-gray-500 focus:outline-none">
+          <%= icon "bars-3" %>
+        </button>
+        <span class="text-xl font-semibold"><%= t("#{controller_name}.#{action_name}") %></span>
+      </div>
+      <% if user_signed_in? %>
+        <div class="flex items-center space-x-4">
+          <span class="text-gray-700"><%= current_user.email %></span>
+          <div class="relative">
+            <button
+              data-action="click->layout#toggleUserTooltip"
+              class="z-10 block h-8 w-8 rounded-full overflow-hidden shadow focus:outline-none bg-gray-300 flex items-center justify-center">
+              <%= icon "user" %>
+            </button>
+            <div data-layout-target="userTooltip"  class="w-40 hidden absolute bg-gray-800 text-white rounded shadow-lg top-15 right-full z-999">
+              <%= button_to "Cerrar Sesión", destroy_user_session_path, method: :delete, class: "w-full bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded" %>
+            </div>
+          </div>
+        </div>
+      <% end %>
+    </nav>
     <main>
       <%= yield %>
     </main>

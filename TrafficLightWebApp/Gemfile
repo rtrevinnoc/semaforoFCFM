@@ -69,3 +69,10 @@ gem "tailwindcss-rails", "~> 4.2"
 gem 'mongoid'
 
 gem 'devise'
+gem "rails_icons", "~> 1.2"
+
+gem "rolify", "~> 6.0"
+
+gem "activeadmin", "~> 3.3"
+
+gem "mongoid_rails_migrations", "~> 1.6"

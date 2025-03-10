@@ -1,5 +1,6 @@
 class SemaforosController < ApplicationController
   before_action :set_semaforo, only: %i[ show edit update destroy ]
+  before_action :authorize_admin, only: %i[ create update destroy ]
 
   # GET /semaforos or /semaforos.json
   def index
@@ -71,5 +72,9 @@ class SemaforosController < ApplicationController
         :priority, :cycles, :last_green_update, :last_update, 
         location: [:latitude, :longitude]
       )
+    end
+
+    def authorize_admin
+      redirect_to root_path, alert: "Access Denied" unless current_user.has_role?(:admin)
     end
 end

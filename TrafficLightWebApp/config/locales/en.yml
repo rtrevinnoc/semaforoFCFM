@@ -29,3 +29,9 @@
 
 en:
   hello: "Hello world"
+  map:
+    index: "Map"
+  sessions:
+    new: "Log In"
+  registrations:
+    new: "Sign Up"
