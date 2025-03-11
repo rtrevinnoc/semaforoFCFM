@@ -12,7 +12,10 @@ export default class extends Controller {
 
   trafficLights = [];
   trafficLightMarkers = [];
-  trafficLightMarkerGroup;
+  trafficLightMarkerGroup = L.markerClusterGroup({
+    disableClusteringAtZoom: 15,
+    zoomToBoundsOnClick: true
+  });
   trafficLightMarkerIcons = {
     Red: L.icon({
       iconUrl: this.redTrafficLightIconValue,
@@ -69,13 +72,39 @@ export default class extends Controller {
   }
 
   showNewSemaphoreForm(lat, lng) {
+    const closestSemaphore = this.trafficLights.reduce((closest, semaphore) => {
+      const distance = this.map.distance([lat, lng], [semaphore.location.latitude, semaphore.location.longitude]);
+      return distance < closest.distance ? { semaphore, distance } : closest;
+    }, { semaphore: null, distance: Infinity }).semaphore;
+
+    const cruce_id = closestSemaphore ? closestSemaphore.cruce_id : '';
+    const zone = closestSemaphore ? closestSemaphore.zone : '';
+
     const formHtml = `
-      <form id="new-semaphore-form" class="p-2">
-        <h3 class="text-lg font-bold mb-2">Nuevo Semaforo</h3>
-        <label class="block mb-2">
-          Serial:
-          <input type="text" name="serial" class="block w-full mt-1 p-2 border rounded" required>
-        </label>
+      <form id="new-semaphore-form" class="p-2 px-4 space-y-2">
+        <h3 class="text-lg font-bold">Nuevo Semaforo</h3>
+        <div class="space-y-2">
+          <label class="block">
+            Serial:
+            <input type="text" name="serial" class="block w-full mt-1 p-2 border rounded" required>
+          </label>
+          <label class="block">
+            Cruce:
+            <input type="text" name="cruce_id" value="${cruce_id}" class="block w-full mt-1 p-2 border rounded" required>
+          </label>
+          <label class="block">
+            Zona:
+            <input type="text" name="zone" value="${zone}" class="block w-full mt-1 p-2 border rounded" required>
+          </label>
+          <label class="block">
+            Número de Ciclos:
+            <input type="number" name="cycles" class="block w-full mt-1 p-2 border rounded" required>
+          </label>
+          <label class="block">
+            Nivel de Prioridad:
+            <input type="number" name="priority" class="block w-full mt-1 p-2 border rounded" required>
+          </label>
+        </div>
         <input type="hidden" name="latitude" value="${lat}">
         <input type="hidden" name="longitude" value="${lng}">
         <button type="submit" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Registrar</button>
@@ -95,6 +124,10 @@ export default class extends Controller {
     const formData = new FormData(event.target)
     const data = {
       serial: formData.get('serial'),
+      priority: formData.get('priority'),
+      zone: formData.get('zone'),
+      cycles: formData.get('cycles'),
+      cruce_id: formData.get('cruce_id'),
       location: {
         latitude: formData.get('latitude'),
         longitude: formData.get('longitude')
@@ -117,7 +150,7 @@ export default class extends Controller {
         const index = this.trafficLights.length - 1
         const marker = L.marker([newSemaphore.location.latitude, newSemaphore.location.longitude], { icon: this.getTrafficLightMarkerIcon(newSemaphore) })
           .addTo(this.map)
-          .bindPopup(this.generatePopupContent(index), { autoClose: false })
+          .bindPopup(this.generateMainPopupContent(index), { autoClose: false })
 
         this.trafficLightMarkers.push(marker)
         this.map.closePopup()
@@ -126,7 +159,6 @@ export default class extends Controller {
   }
 
   changeTrafficLight(trafficLight, successCallback, errorCallback) {
-    console.log(JSON.stringify({ "semaforo": trafficLight }))
     fetch(`/semaforos/${trafficLight.id}.json`, {
       method: 'PUT',
       headers: {
@@ -173,7 +205,7 @@ export default class extends Controller {
     })
   }
 
-  generatePopupContent(index) {
+  generateMainPopupContent(index) {
     let popupContent = `
       <div class="p-2 space-y-4">
         <p class="text-center text-lg mb-2"><span class="font-bold">Número de Serie: </span>${this.trafficLights[index].serial}</p>
@@ -191,6 +223,7 @@ export default class extends Controller {
     if (this.isAdminValue) {
       popupContent += `
         <button data-action="click->map#destroyTrafficLight" data-map-index-param="${index}" class="w-full bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded">Eliminar</button>
+        <button data-action="click->map#openEditTrafficLightPopup" data-map-index-param="${index}" class="w-full bg-yellow-500 hover:bg-yellow-700 text-white font-bold py-2 px-4 rounded">Editar</button>
       `;
     }
 
@@ -206,16 +239,16 @@ export default class extends Controller {
         this.trafficLightMarkers[index] = L.marker([trafficLight.location.latitude, trafficLight.location.longitude], { icon: this.getTrafficLightMarkerIcon(trafficLight) })
 
         this.trafficLightMarkers[index]
-          .addTo(this.map)
-          .bindPopup(this.generatePopupContent(index), { autoClose: false });
+          .addTo(this.trafficLightMarkerGroup)
+          .bindPopup(this.generateMainPopupContent(index), { autoClose: false });
       });
 
       if (this.trafficLightMarkers.length > 0) {
-        this.trafficLightMarkerGroup = L.featureGroup(this.trafficLightMarkers).addTo(this.map);
+        this.trafficLightMarkerGroup.addTo(this.map);
         this.map.fitBounds(this.trafficLightMarkerGroup.getBounds());
       }
     })
-    .catch(error => console.error(error));
+    .catch(error => alert("Failed to create traffic light"));
   }
 
   destroyTrafficLight({ params: { index } }) {
@@ -233,9 +266,78 @@ export default class extends Controller {
           this.trafficLights.splice(index, 1);
           this.trafficLightMarkers.splice(index, 1);
         } else {
-          console.error('Failed to delete traffic light');
+          alert('Failed to delete traffic light');
         }
       })
       .catch(error => console.error(error));
+  }
+
+  openEditTrafficLightPopup(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    const index = event.target.dataset.mapIndexParam;
+    const trafficLight = this.trafficLights[index];
+    const formHtml = `
+      <form id="edit-semaphore-form" class="p-2 px-4 space-y-2">
+        <h3 class="text-lg font-bold">Editar Semaforo</h3>
+        <div class="space-y-2">
+          <label class="block">
+            Serial:
+            <input type="text" name="serial" value="${trafficLight.serial}" class="block w-full mt-1 p-2 border rounded" required>
+          </label>
+          <label class="block">
+            Cruce:
+            <input type="text" name="cruce_id" value="${trafficLight.cruce_id}" class="block w-full mt-1 p-2 border rounded" required>
+          </label>
+          <label class="block">
+            Zona:
+            <input type="text" name="zone" value="${trafficLight.zone}" class="block w-full mt-1 p-2 border rounded" required>
+          </label>
+          <label class="block">
+            Número de Ciclos:
+            <input type="number" name="cycles" value="${trafficLight.cycles}" class="block w-full mt-1 p-2 border rounded" required>
+          </label>
+          <label class="block">
+            Nivel de Prioridad:
+            <input type="number" name="priority" value="${trafficLight.priority}" class="block w-full mt-1 p-2 border rounded" required>
+          </label>
+        </div>
+        <input type="hidden" name="latitude" value="${trafficLight.location.latitude}">
+        <input type="hidden" name="longitude" value="${trafficLight.location.longitude}">
+        <button type="submit" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Guardar</button>
+        <button type="button" data-action="click->map#backToMainPopupContent" data-map-index-param="${index}" id="back-button" class="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded">Volver</button>
+      </form>
+    `
+
+    this.trafficLightMarkers[index].getPopup().setContent(formHtml);
+
+    document.getElementById('edit-semaphore-form').addEventListener('submit', (event) => this.editTrafficLight(event, index))
+  }
+
+  backToMainPopupContent(event) {
+      event.stopPropagation();
+      const index = event.target.dataset.mapIndexParam;
+      this.trafficLightMarkers[index].getPopup().setContent(this.generateMainPopupContent(index));
+  }
+
+  editTrafficLight(event, index) {
+    event.preventDefault()
+    const formData = new FormData(event.target)
+    const data = {
+      id: this.trafficLights[index].id,
+      serial: formData.get('serial'),
+      priority: formData.get('priority'),
+      zone: formData.get('zone'),
+      cycles: formData.get('cycles'),
+      cruce_id: formData.get('cruce_id'),
+      location: {
+        latitude: formData.get('latitude'),
+        longitude: formData.get('longitude')
+      },
+      mode: this.modes.Manual,
+      state: this.colors.Red
+    }
+
+    this.changeTrafficLight(data, () => {}, () => { alert('Failed to update traffic light') });
   }
 }

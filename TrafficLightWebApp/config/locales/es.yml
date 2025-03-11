@@ -29,6 +29,7 @@
 
 es:
   hello: "Hola mundo"
+  title: "Semáforos"
   map:
     index: "Mapa"
   sessions:
