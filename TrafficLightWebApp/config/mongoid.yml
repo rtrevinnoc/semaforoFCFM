@@ -286,7 +286,6 @@ development:
     # validate the paramters and raise an error if they are invalid.
     # validate_update_replace: false
 
-
 test:
   clients:
     default:
@@ -297,3 +296,10 @@ test:
         read:
           mode: :primary
         max_pool_size: 1
+
+production:
+  clients:
+    # Defines the default client. (required)
+    default:
+      # Mongoid can connect to a URI accepted by the driver:
+      uri: mongodb+srv://clientapp:LLjALBUEvLGjGgph@cluster0.x5fa5jl.mongodb.net/semaforo?retryWrites=true&w=majority&appName=Cluster0
