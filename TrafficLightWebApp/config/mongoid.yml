@@ -302,4 +302,4 @@ production:
     # Defines the default client. (required)
     default:
       # Mongoid can connect to a URI accepted by the driver:
-      uri: mongodb+srv://clientapp:LLjALBUEvLGjGgph@cluster0.x5fa5jl.mongodb.net/semaforo?retryWrites=true&w=majority&appName=Cluster0
+      uri: mongodb+srv://clientapp:LLjALBUEvLGjGgph@cluster0.x5fa5jl.mongodb.net/semaforo?authSource=admin&appName=Cluster0
